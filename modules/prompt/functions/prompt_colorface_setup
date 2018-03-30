@@ -1,0 +1,106 @@
+# ZSH colorface theme by kemurphy
+
+pmodload 'helper'
+
+function prompt_colorface_strip {
+  local subst='s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g'
+  print -P "$1" | sed -r "$subst"
+}
+
+function prompt_colorface_pwd {
+  local pr1len="$(( ${prompt_colorface_linelen_const} + ${(e)#_prompt_colorface_venv_stripped} + ${(e)#prompt_colorface_git_stripped} ))"
+
+  local wd="${PWD/#$HOME/~}"
+  local wdlen="${#wd}"
+
+  local wdsize=""
+
+  if [[ "$pr1len + $wdlen" -gt (($COLUMNS - 1)) ]]; then
+      ((wdsize=$COLUMNS - 1 - $pr1len))
+  fi
+
+  _prompt_colorface_pwd="%$wdsize<...<$wd%<<"
+}
+
+function prompt_colorface_venv {
+  local wht="%{%b%F{white}%}"
+  _prompt_colorface_venv="${VIRTUAL_ENV:+${wht}($(basename ${VIRTUAL_ENV})) }"
+  _prompt_colorface_venv_stripped="`prompt_colorface_strip \"$_prompt_colorface_venv\"`"
+}
+
+function prompt_colorface_precmd {
+  setopt LOCAL_OPTIONS
+  unsetopt XTRACE KSH_ARRAYS
+
+  # Get Git repository information.
+  if (( $+functions[git-info] )); then
+    git-info
+  fi
+
+  # Format PWD.
+  prompt_colorface_pwd
+  prompt_colorface_venv
+
+  prompt_colorface_git="${git_info:+${(e)git_info[prompt]}}"
+  prompt_colorface_git_stripped="`prompt_colorface_strip \"$prompt_colorface_git\"`"
+}
+
+function prompt_colorface_setup {
+  setopt LOCAL_OPTIONS
+  unsetopt XTRACE KSH_ARRAYS
+  prompt_opts=(cr percent subst)
+
+  # Load required functions.
+  autoload -Uz add-zsh-hook
+
+  # Add hook for calling git-info before each command.
+  add-zsh-hook precmd prompt_colorface_precmd
+
+  local state="%{%(?|%(!.%b%F{yellow}.%b%F{green})|%b%F{red})%}"
+  local priv="%{%(!|%B%F{red}|%B%F{cyan})%}"
+  local header="${priv}%n%{%b%F{white}%}@%{%b%F{blue}%}%m"
+  local pr1h="┌──────[ "
+  local pr1c="${header}${state} : %{%B%F{yellow}%}"
+  local pr1cs="`prompt_colorface_strip \"$pr1c\"`"
+  local pr1t=" ]"
+  local pr1len="$(( ${#pr1h} + ${#pr1cs} + ${#pr1t} ))"
+  local face="%(?|%(!|c.c|^_^)|>_<)"
+  local gitstate=$(echo $state | sed 's/%\([saABbcCdDmpRrSUu{}(]\)/%%\1/g')
+
+  zstyle ':prezto:module:editor:info:completing' format '%B%F{red}...%f%b'
+  zstyle ':prezto:module:editor:info:keymap:primary' format ' %B%F{red}❯%F{yellow}❯%F{green}❯%f%b'
+  zstyle ':prezto:module:editor:info:keymap:primary:overwrite' format ' %F{red}♺%f'
+  zstyle ':prezto:module:editor:info:keymap:alternate' format ' %B%F{green}❮%F{yellow}❮%F{red}❮%f%b'
+  zstyle ':prezto:module:git:info:action' format "$gitstate "'doing %{%%b%F{cyan}%}%s'
+  zstyle ':prezto:module:git:info:added' format '%{%%B%F{red}%}*'
+  zstyle ':prezto:module:git:info:branch' format '%b'
+  zstyle ':prezto:module:git:info:commit' format '%.7c'
+  zstyle ':prezto:module:git:info:deleted' format '%{%%B%F{red}%}*'
+  zstyle ':prezto:module:git:info:modified' format '%{%%B%F{red}%}*'
+  zstyle ':prezto:module:git:info:position' format '%p'
+  zstyle ':prezto:module:git:info:renamed' format '%{%%B%F{red}%}*'
+  zstyle ':prezto:module:git:info:unmerged' format '%{%%B%F{red}%}*'
+  zstyle ':prezto:module:git:info:untracked' format '%{%%B%F{red}%}*'
+  zstyle ':prezto:module:git:info:keys' format \
+    'prompt' "$gitstate"' on %{%%B%F{magenta}%}$(coalesce "%b" "%p" "%c")$(coalesce "%a" "%d" "%m" "%r" "%U" "%u")%s' \
+    'rprompt' ''
+
+  local venvexpn='${_prompt_colorface_venv}'
+  local wdexpn='${_prompt_colorface_pwd}'
+  local gpexpn='${prompt_colorface_git}'
+
+  local endl=$'\r\n'
+  local pr2="└($face)─%(!.#.$) %{%f%}"
+
+  prompt_colorface_linelen_const="$pr1len"
+
+  #ZSH_THEME_TERM_TAB_TITLE_IDLE="%15<..<$wdexpn%<<"
+  #ZSH_THEME_TERM_TITLE_IDLE="$pr1cs$wdexpn$gpsexpn"
+
+  PROMPT="$state$pr1h$venvexpn$pr1c$wdexpn$gpexpn$state$pr1t$endl$pr2${editor_info[keymap]}"
+  RPROMPT='${editor_info[overwrite]}%(?:: %F{red}⏎%f)${VIM:+" %B%F{green}V%f%b"}'
+  SPROMPT='zsh: correct %F{red}%R%f to %F{green}%r%f [nyae]? '
+}
+
+
+prompt_colorface_setup "$@"
